@@ -1,0 +1,319 @@
+.workspace {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.workspace-header {
+  margin-bottom: 28px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border: 1px solid #dce3ee;
+  border-radius: 20px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.workspace h1 {
+  margin: 18px 0 10px;
+  font-size: clamp(28px, 4vw, 38px);
+  letter-spacing: -1px;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Карточки */
+
+.panel {
+  margin-bottom: 20px;
+  padding: 26px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgb(15 23 42 / 3%);
+}
+
+.panel h2 {
+  margin: 0 0 22px;
+  font-size: 19px;
+  line-height: 1.4;
+}
+
+.panel h3 {
+  margin: 24px 0 10px;
+  font-size: 14px;
+}
+
+/* Поиск */
+
+.workspace label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.search-row {
+  display: flex;
+  gap: 12px;
+}
+
+.search-row input {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 14px;
+}
+
+.search-row input::placeholder {
+  color: #94a3b8;
+}
+
+.workspace button {
+  min-height: 46px;
+  padding: 12px 22px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #294ecb;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.workspace button:hover:not(:disabled) {
+  background: #203fa8;
+}
+
+.workspace button:disabled {
+  background: #edf1f7;
+  color: #7b879b;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.workspace input:focus-visible,
+.workspace button:focus-visible {
+  outline: 3px solid #a8bfff;
+  outline-offset: 3px;
+}
+
+/* Две колонки */
+
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 22px;
+  align-items: start;
+}
+
+.dashboard > *,
+.dashboard aside {
+  min-width: 0;
+}
+
+/* Клиент */
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.client-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.client-heading > div:last-child {
+  min-width: 0;
+}
+
+.client-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: #eef2ff;
+  color: #294ecb;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.eyebrow {
+  display: block;
+  margin: 0 0 5px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.neutral-tag {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: #f1f4f8;
+  color: #526078;
+  font-size: 12px;
+}
+
+.data-date {
+  margin: 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #edf0f5;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.empty-note {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed #dce3ee;
+  border-radius: 10px;
+  background: #fafbfd;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Прогноз */
+
+.prediction-panel {
+  border-top: 3px solid #294ecb;
+}
+
+.prediction-panel h2 {
+  margin-top: 6px;
+}
+
+.prediction-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 12px;
+  border-radius: 12px;
+  background: #f6f8fc;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.prediction-number {
+  color: #94a3b8;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.prediction-description {
+  margin: 20px 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.hint {
+  margin: 16px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.prediction-panel .hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12px;
+}
+
+/* Состояния */
+
+.error {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #a12638;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.welcome-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: #64748b;
+}
+
+.welcome-state h2 {
+  margin: 0 0 12px;
+  color: #334155;
+  font-size: 20px;
+}
+
+.welcome-state p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Небольшие экраны */
+
+@media (max-width: 900px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .workspace {
+    padding: 24px 16px;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .search-row {
+    flex-direction: column;
+  }
+
+  .search-row input {
+    flex: auto;
+    width: 100%;
+  }
+
+  .section-heading {
+    flex-wrap: wrap;
+  }
+}
