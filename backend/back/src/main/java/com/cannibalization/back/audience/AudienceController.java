@@ -29,4 +29,10 @@ public class AudienceController {
     public List<Map<String, Object>> getMembers(@PathVariable UUID id) {
         return service.getMembers(id);
     }
+
+
+    @PostMapping("/{id}/analyze")
+    public Map<String, Object> analyze(@PathVariable UUID id) {
+        return service.analyze(id);
+    }
 }
