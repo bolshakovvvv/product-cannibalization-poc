@@ -39,6 +39,22 @@ type ClientCard = {
   }
 }
 
+type AudienceUploadResponse = {
+  audienceId: string
+  filename: string
+  inputRowCount: number
+  uniqueClientCount: number
+  duplicateCount: number
+  foundCount: number
+  notFoundCount: number
+}
+
+type AudienceMember = {
+  clientId: string
+  status: 'FOUND' | 'NOT_FOUND'
+  snapshotId: string | null
+}
+
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'RUB',
@@ -79,15 +95,20 @@ function Field({
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'client' | 'audience'>('client')
+
   const [clientId, setClientId] = useState('')
   const [client, setClient] = useState<ClientCard | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function findClient(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [audience, setAudience] = useState<AudienceUploadResponse | null>(null)
+  const [members, setMembers] = useState<AudienceMember[]>([])
+  const [audienceLoading, setAudienceLoading] = useState(false)
+  const [audienceError, setAudienceError] = useState('')
 
-    const id = clientId.trim()
+  async function loadClient(id: string) {
     if (!id || loading) return
 
     setLoading(true)
@@ -96,11 +117,11 @@ function App() {
 
     try {
       const response = await fetch(
-          `/api/clients/${encodeURIComponent(id)}`,
-          {
-            headers: { Accept: 'application/json' },
-            signal: AbortSignal.timeout(15000),
-          },
+        `/api/clients/${encodeURIComponent(id)}`,
+        {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(15000),
+        },
       )
 
       if (response.status === 404) {
@@ -122,6 +143,51 @@ function App() {
     }
   }
 
+  function findClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void loadClient(clientId.trim())
+  }
+
+  function openClient(id: string) {
+    setClientId(id)
+    setActiveTab('client')
+    void loadClient(id)
+  }
+
+  async function uploadAudience(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!csvFile || audienceLoading) return
+
+    setAudienceLoading(true)
+    setAudienceError('')
+    setAudience(null)
+    setMembers([])
+
+    try {
+      const formData = new FormData()
+      formData.append('file', csvFile)
+
+      const uploadResponse = await fetch('/api/audiences', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!uploadResponse.ok) throw new Error('Не удалось загрузить CSV.')
+
+      const result: AudienceUploadResponse = await uploadResponse.json()
+      setAudience(result)
+
+      const membersResponse = await fetch(`/api/audiences/${result.audienceId}/members`)
+      if (!membersResponse.ok) throw new Error('Аудитория создана, но список клиентов не получен.')
+
+      const data: AudienceMember[] = await membersResponse.json()
+      setMembers(data)
+    } catch (error) {
+      setAudienceError(error instanceof Error ? error.message : 'Не удалось загрузить аудиторию.')
+    } finally {
+      setAudienceLoading(false)
+    }
+  }
+
   return (
       <main className="workspace">
         <header className="workspace-header">
@@ -131,11 +197,32 @@ function App() {
           </span>
             <h1>Подбор аудитории</h1>
             <p className="subtitle">
-              Онкострахование · Данные клиента и сводка коммуникаций
+              Онкострахование · Загрузка аудитории и данные клиентов
             </p>
           </div>
         </header>
 
+        <nav className="tabs" aria-label="Разделы">
+          <button
+            type="button"
+            className={`tab ${activeTab === 'client' ? 'tab-active' : ''}`}
+            aria-current={activeTab === 'client' ? 'page' : undefined}
+            onClick={() => setActiveTab('client')}
+          >
+            Клиент
+          </button>
+          <button
+            type="button"
+            className={`tab ${activeTab === 'audience' ? 'tab-active' : ''}`}
+            aria-current={activeTab === 'audience' ? 'page' : undefined}
+            onClick={() => setActiveTab('audience')}
+          >
+            Аудитория
+          </button>
+        </nav>
+
+        {activeTab === 'client' && (
+          <div>
         <section className="panel" aria-labelledby="search-title">
           <h2 id="search-title">Поиск клиента</h2>
 
@@ -355,6 +442,127 @@ function App() {
               <h2>Начните с поиска клиента</h2>
               <p>Введите ID, чтобы загрузить доступные сведения.</p>
             </div>
+        )}
+          </div>
+        )}
+
+        {activeTab === 'audience' && (
+          <div>
+            <section className="panel" aria-labelledby="upload-title">
+              <h2 id="upload-title">Загрузка аудитории</h2>
+              <p className="card-caption">
+                Загрузите CSV с колонкой <code>client_id</code>. Повторяющиеся ID будут исключены.
+              </p>
+
+              <form className="upload-form" onSubmit={uploadAudience}>
+                <div className="upload-field">
+                  <label htmlFor="audience-file">CSV-файл с клиентами</label>
+                  <input
+                    id="audience-file"
+                    type="file"
+                    accept=".csv,text/csv"
+                    disabled={audienceLoading}
+                    onChange={(event) => {
+                      setCsvFile(event.target.files?.[0] ?? null)
+                      setAudience(null)
+                      setMembers([])
+                      setAudienceError('')
+                    }}
+                  />
+                </div>
+                <button type="submit" disabled={!csvFile || audienceLoading}>
+                  {audienceLoading ? 'Загружаем…' : 'Загрузить CSV'}
+                </button>
+              </form>
+
+              {audienceLoading && <p className="hint" role="status">Обрабатываем аудиторию…</p>}
+              {audienceError && <p className="error" role="alert">{audienceError}</p>}
+            </section>
+
+            {audience && (
+              <>
+                <section className="panel" aria-labelledby="audience-title">
+                  <h2 id="audience-title">Результат загрузки</h2>
+                  <p className="card-caption">
+                    Файл: <strong>{audience.filename}</strong> · Строк в CSV: {audience.inputRowCount}
+                  </p>
+                  <div className="audience-metrics">
+                    <div className="client-metric">
+                      <span className="client-metric-value">{audience.uniqueClientCount}</span>
+                      <span>Уникальных клиентов</span>
+                    </div>
+                    <div className="client-metric">
+                      <span className="client-metric-value">{audience.foundCount}</span>
+                      <span>Найдено в базе</span>
+                    </div>
+                    <div className="client-metric">
+                      <span className="client-metric-value">{audience.notFoundCount}</span>
+                      <span>Не найдено</span>
+                    </div>
+                    <div className="client-metric">
+                      <span className="client-metric-value">{audience.duplicateCount}</span>
+                      <span>Дубликатов</span>
+                    </div>
+                  </div>
+                  <p className="hint">ID аудитории: <code>{audience.audienceId}</code></p>
+                </section>
+
+                {!audienceError && !audienceLoading && (
+                  <section className="panel" aria-labelledby="members-title">
+                    <div className="section-heading">
+                      <h2 id="members-title">Клиенты аудитории</h2>
+                      <button type="button" disabled title="ML-модель пока не подключена">
+                        Рассчитать прогноз для аудитории
+                      </button>
+                    </div>
+                    <p className="card-caption">
+                      Массовый расчёт станет доступен после подключения ML-модели.
+                    </p>
+                    <div className="audience-table-wrapper">
+                      <table className="audience-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">ID клиента</th>
+                            <th scope="col">Статус</th>
+                            <th scope="col">ID снимка</th>
+                            <th scope="col">Прогноз покупки</th>
+                            <th scope="col">Карточка</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {members.map((member) => (
+                            <tr key={member.clientId}>
+                              <td>{member.clientId}</td>
+                              <td>
+                                <span className={`member-status ${member.status === 'FOUND' ? 'member-found' : 'member-missing'}`}>
+                                  {member.status === 'FOUND' ? 'Найден' : 'Не найден'}
+                                </span>
+                              </td>
+                              <td className="snapshot-cell">{member.snapshotId ?? '—'}</td>
+                              <td className="prediction-cell">
+                                {member.status === 'FOUND' ? 'Не рассчитан' : '—'}
+                              </td>
+                              <td>
+                                {member.status === 'FOUND' ? (
+                                  <button
+                                    className="table-action"
+                                    type="button"
+                                    onClick={() => openClient(member.clientId)}
+                                  >
+                                    Открыть
+                                  </button>
+                                ) : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+          </div>
         )}
       </main>
   )
