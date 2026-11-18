@@ -24,7 +24,42 @@ public class ClientService {
         return new ClientCardResponse(
                 snapshot.getClientId(),
                 snapshot.getId(),
-                snapshot.getAsOfAt()
+                snapshot.getAsOfAt(),
+
+                new ClientCardResponse.Profile(
+                        snapshot.getAge(),
+                        snapshot.getGender(),
+                        snapshot.getRegion(),
+                        snapshot.getSegment(),
+                        snapshot.getPayrollClient(),
+                        snapshot.getBankTenureMonths(),
+                        snapshot.getFamilyOrChildren()
+                ),
+
+                new ClientCardResponse.Insurance(
+                        snapshot.getActiveDms(),
+                        snapshot.getActiveAccidentPolicy(),
+                        snapshot.getActivePolicyCount(),
+                        snapshot.getHadInsurancePolicy(),
+                        snapshot.getDaysSinceDmsPurchase()
+                ),
+
+                new ClientCardResponse.Communications(
+                        snapshot.getOncoPushes30d(),
+                        snapshot.getAllProductPushes7d(),
+                        snapshot.getAllProductPushes30d(),
+                        snapshot.getDaysSinceOncoPush(),
+                        snapshot.getDaysSinceDmsPush(),
+                        snapshot.getOpenRate180d(),
+                        snapshot.getCtr180d(),
+                        snapshot.getPreviousPushProduct()
+                ),
+
+                new ClientCardResponse.Spending(
+                        snapshot.getMedicalSpend90d(),
+                        snapshot.getPharmacySpend90d(),
+                        snapshot.getAvgMonthlySpend()
+                )
         );
     }
 }
