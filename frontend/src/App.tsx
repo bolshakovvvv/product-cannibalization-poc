@@ -1,11 +1,81 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import './App.css'
 
 type ClientCard = {
   clientId: string
   snapshotId: string
   asOfAt: string
+  profile: {
+    age: number | null
+    gender: string | null
+    region: string | null
+    segment: string | null
+    payrollClient: boolean | null
+    bankTenureMonths: number | null
+    familyOrChildren: boolean | null
+  }
+  insurance: {
+    activeDms: boolean | null
+    activeAccidentPolicy: boolean | null
+    activePolicyCount: number | null
+    hadInsurancePolicy: boolean | null
+    daysSinceDmsPurchase: number | null
+  }
+  communications: {
+    oncoPushes30d: number | null
+    allProductPushes7d: number | null
+    allProductPushes30d: number | null
+    daysSinceOncoPush: number | null
+    daysSinceDmsPush: number | null
+    openRate180d: number | null
+    ctr180d: number | null
+    previousPushProduct: string | null
+  }
+  spending: {
+    medicalSpend90d: number | null
+    pharmacySpend90d: number | null
+    avgMonthlySpend: number | null
+  }
+}
+
+const moneyFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  maximumFractionDigits: 2,
+})
+
+const percentFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+})
+
+function yesNo(value: boolean | null | undefined): string {
+  if (value == null) return 'Нет данных'
+  return value ? 'Да' : 'Нет'
+}
+
+function money(value: number | null | undefined): string {
+  return value == null ? 'Нет данных' : moneyFormatter.format(value)
+}
+
+function percent(value: number | null | undefined): string {
+  return value == null ? 'Нет данных' : percentFormatter.format(value)
+}
+
+function Field({
+                 label,
+                 value,
+               }: {
+  label: string
+  value: ReactNode
+}) {
+  return (
+      <div className="detail-field">
+        <dt>{label}</dt>
+        <dd>{value ?? 'Нет данных'}</dd>
+      </div>
+  )
 }
 
 function App() {
@@ -56,10 +126,12 @@ function App() {
       <main className="workspace">
         <header className="workspace-header">
           <div>
-            <span className="badge">Учебный прототип</span>
+          <span className="badge">
+            Учебный прототип · Синтетические данные
+          </span>
             <h1>Подбор аудитории</h1>
             <p className="subtitle">
-              Онкострахование · Данные клиента и история коммуникаций
+              Онкострахование · Данные клиента и сводка коммуникаций
             </p>
           </div>
         </header>
@@ -132,21 +204,117 @@ function App() {
                   </p>
 
                   <h3>Профиль клиента</h3>
-                  <p className="empty-note">
-                    Дополнительные сведения пока не доступны.
-                  </p>
+                  <dl className="details-grid">
+                    <Field label="Возраст, лет" value={client.profile?.age} />
+                    <Field label="Пол" value={client.profile?.gender} />
+                    <Field label="Регион" value={client.profile?.region} />
+                    <Field label="Сегмент" value={client.profile?.segment} />
+                    <Field
+                        label="Стаж в банке, месяцев"
+                        value={client.profile?.bankTenureMonths}
+                    />
+                    <Field
+                        label="Зарплатный клиент"
+                        value={yesNo(client.profile?.payrollClient)}
+                    />
+                    <Field
+                        label="Есть семья или дети"
+                        value={yesNo(client.profile?.familyOrChildren)}
+                    />
+                  </dl>
 
                   <h3>Страховые продукты</h3>
-                  <p className="empty-note">
-                    Сведения о страховых продуктах пока не доступны.
-                  </p>
+                  <dl className="details-grid">
+                    <Field
+                        label="Активный ДМС"
+                        value={yesNo(client.insurance?.activeDms)}
+                    />
+                    <Field
+                        label="Активная страховка от несчастных случаев"
+                        value={yesNo(client.insurance?.activeAccidentPolicy)}
+                    />
+                    <Field
+                        label="Активных полисов"
+                        value={client.insurance?.activePolicyCount}
+                    />
+                    <Field
+                        label="Ранее покупал страховку"
+                        value={yesNo(client.insurance?.hadInsurancePolicy)}
+                    />
+                    <Field
+                        label="Дней с покупки ДМС"
+                        value={client.insurance?.daysSinceDmsPurchase}
+                    />
+                  </dl>
                 </section>
 
-                <section className="panel">
-                  <h2>История коммуникаций</h2>
-                  <p className="empty-note">
-                    Сведения о коммуникациях пока не доступны.
+                <section className="panel" aria-labelledby="communications-title">
+                  <h2 id="communications-title">Сводка коммуникаций</h2>
+                  <p className="card-caption">
+                    Показатели рассчитаны на дату среза.
                   </p>
+
+                  <div className="client-metrics">
+                    <div className="client-metric">
+                  <span className="client-metric-value">
+                    {client.communications?.oncoPushes30d ?? '—'}
+                  </span>
+                      <span>Пушей по онко за 30 дней</span>
+                    </div>
+                    <div className="client-metric">
+                  <span className="client-metric-value">
+                    {client.communications?.allProductPushes7d ?? '—'}
+                  </span>
+                      <span>Всех пушей за 7 дней</span>
+                    </div>
+                    <div className="client-metric">
+                  <span className="client-metric-value">
+                    {client.communications?.allProductPushes30d ?? '—'}
+                  </span>
+                      <span>Всех пушей за 30 дней</span>
+                    </div>
+                  </div>
+
+                  <dl className="details-grid">
+                    <Field
+                        label="Дней с последнего пуша по онко"
+                        value={client.communications?.daysSinceOncoPush}
+                    />
+                    <Field
+                        label="Дней с последнего пуша по ДМС"
+                        value={client.communications?.daysSinceDmsPush}
+                    />
+                    <Field
+                        label="Доля открытий за 180 дней"
+                        value={percent(client.communications?.openRate180d)}
+                    />
+                    <Field
+                        label="CTR за 180 дней"
+                        value={percent(client.communications?.ctr180d)}
+                    />
+                    <Field
+                        label="Продукт предыдущего пуша"
+                        value={client.communications?.previousPushProduct}
+                    />
+                  </dl>
+                </section>
+
+                <section className="panel" aria-labelledby="spending-title">
+                  <h2 id="spending-title">Расходы</h2>
+                  <dl className="details-grid">
+                    <Field
+                        label="Медицинские траты за 90 дней"
+                        value={money(client.spending?.medicalSpend90d)}
+                    />
+                    <Field
+                        label="Траты в аптеках за 90 дней"
+                        value={money(client.spending?.pharmacySpend90d)}
+                    />
+                    <Field
+                        label="Средние траты в месяц"
+                        value={money(client.spending?.avgMonthlySpend)}
+                    />
+                  </dl>
                 </section>
               </div>
 
