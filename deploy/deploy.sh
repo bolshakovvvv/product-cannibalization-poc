@@ -22,7 +22,6 @@ test -s "$package/compose.yaml"
 test -s "$package/nginx.conf"
 test -f .env
 
-# Отдельный файл хранит выбранную версию приложения.
 if [[ ! -f .release.env ]]; then
   printf 'RELEASE_ID=initial\n' > .release.env
 fi
@@ -64,7 +63,6 @@ printf 'RELEASE_ID=%s\n' "$release" > .release.env
 
 dc config --quiet
 
-# Пересоздаём только приложение. PostgreSQL не перезапускаем.
 dc up -d --no-deps --force-recreate backend
 dc up -d --no-deps --force-recreate nginx
 dc exec -T nginx nginx -t
@@ -72,7 +70,6 @@ dc exec -T nginx nginx -t
 healthy=false
 
 for attempt in $(seq 1 30); do
-  # Проверяем бэкенд напрямую внутри Docker-сети.
   if dc exec -T nginx \
       wget -q -T 3 -O - http://backend:8080/actuator/health \
       > "$package/health.json" 2>/dev/null \
