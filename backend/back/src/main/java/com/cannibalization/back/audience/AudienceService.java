@@ -140,4 +140,66 @@ public class AudienceService {
             ORDER BY position
             """, Map.of("id", audienceId));
     }
+
+
+    public Map<String, Object> analyze(UUID audienceId) {
+        var members = getMembers(audienceId);
+        var predictions = new ArrayList<Map<String, Object>>();
+
+        int high = 0;
+        int medium = 0;
+        int low = 0;
+        double sum = 0;
+
+        for (var member : members) {
+            var result = new LinkedHashMap<>(member);
+
+            if ("FOUND".equals(member.get("status"))) {
+                String clientId = (String) member.get("clientId");
+
+                double probability =
+                        (10 + Math.floorMod(clientId.hashCode(), 81)) / 100.0;
+
+                String segment = probability >= 0.7 ? "HIGH"
+                        : probability >= 0.4 ? "MEDIUM" : "LOW";
+
+                result.put("probability", probability);
+                result.put("segment", segment);
+
+                sum += probability;
+
+                switch (segment) {
+                    case "HIGH" -> high++;
+                    case "MEDIUM" -> medium++;
+                    case "LOW" -> low++;
+                }
+            } else {
+                result.put("probability", null);
+                result.put("segment", "NO_DATA");
+            }
+
+            predictions.add(result);
+        }
+
+        int analyzed = high + medium + low;
+
+        var summary = new LinkedHashMap<String, Object>();
+
+        summary.put("totalClients", members.size());
+        summary.put("analyzedClients", analyzed);
+        summary.put("averageProbability",
+                analyzed == 0 ? null
+                        : Math.round(sum / analyzed * 100.0) / 100.0);
+        summary.put("highCount", high);
+        summary.put("mediumCount", medium);
+        summary.put("lowCount", low);
+
+        return Map.of(
+                "audienceId", audienceId,
+                "mode", "MOCK",
+                "summary", summary,
+                "predictions", predictions
+        );
+    }
+
 }

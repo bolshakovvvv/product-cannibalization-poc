@@ -503,3 +503,82 @@ body {
   color: #64748b;
   white-space: nowrap;
 }
+
+
+/* Результаты массового MOCK-анализа */
+.analysis-results {
+  margin: 20px 0 26px;
+  padding: 22px;
+  border: 1px solid #e5eaf3;
+  border-radius: 14px;
+  background: #fbfcff;
+}
+
+.analysis-results h3 {
+  margin: 22px 0 18px;
+}
+
+.analysis-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.segment-chart {
+  display: grid;
+  gap: 16px;
+}
+
+.segment-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.segment-track {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9eef6;
+}
+
+.segment-bar {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.segment-high { background: #16a34a; }
+.segment-medium { background: #e8a435; }
+.segment-low { background: #8695b0; }
+
+.segment-count {
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.prediction-cell strong {
+  color: #172033;
+}
+
+.prediction-segment {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .analysis-metrics { grid-template-columns: 1fr; }
+  .analysis-results { padding: 16px; }
+  .segment-row { grid-template-columns: 72px minmax(0, 1fr) 30px; gap: 8px; }
+}
+
+/* Прогноз отдельного клиента */
+.prediction-placeholder .prediction-number {
+  font-variant-numeric: tabular-nums;
+}
+.prediction-panel .error {
+  text-align: left;
+}

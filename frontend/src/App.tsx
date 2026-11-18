@@ -55,6 +55,32 @@ type AudienceMember = {
   snapshotId: string | null
 }
 
+type AudiencePrediction = AudienceMember & {
+  probability: number | null
+  segment: 'HIGH' | 'MEDIUM' | 'LOW' | 'NO_DATA'
+}
+
+type ClientPrediction = {
+  clientId: string
+  mode: 'MOCK'
+  probability: number
+  segment: 'HIGH' | 'MEDIUM' | 'LOW'
+}
+
+type AudienceAnalysis = {
+  audienceId: string
+  mode: string
+  summary: {
+    totalClients: number
+    analyzedClients: number
+    averageProbability: number | null
+    highCount: number
+    mediumCount: number
+    lowCount: number
+  }
+  predictions: AudiencePrediction[]
+}
+
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'RUB',
@@ -101,12 +127,18 @@ function App() {
   const [client, setClient] = useState<ClientCard | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [clientPrediction, setClientPrediction] = useState<ClientPrediction | null>(null)
+  const [clientPredicting, setClientPredicting] = useState(false)
+  const [clientPredictionError, setClientPredictionError] = useState('')
 
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [audience, setAudience] = useState<AudienceUploadResponse | null>(null)
   const [members, setMembers] = useState<AudienceMember[]>([])
   const [audienceLoading, setAudienceLoading] = useState(false)
   const [audienceError, setAudienceError] = useState('')
+  const [analysis, setAnalysis] = useState<AudienceAnalysis | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState('')
 
   async function loadClient(id: string) {
     if (!id || loading) return
@@ -114,6 +146,8 @@ function App() {
     setLoading(true)
     setClient(null)
     setError('')
+    setClientPrediction(null)
+    setClientPredictionError('')
 
     try {
       const response = await fetch(
@@ -162,6 +196,8 @@ function App() {
     setAudienceError('')
     setAudience(null)
     setMembers([])
+    setAnalysis(null)
+    setAnalysisError('')
 
     try {
       const formData = new FormData()
@@ -187,6 +223,71 @@ function App() {
       setAudienceLoading(false)
     }
   }
+
+  async function analyzeAudience() {
+    if (!audience || audienceLoading || analyzing) return
+
+    setAnalyzing(true)
+    setAnalysis(null)
+    setAnalysisError('')
+
+    try {
+      const response = await fetch(`/api/audiences/${audience.audienceId}/analyze`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      })
+      if (!response.ok) throw new Error('Не удалось рассчитать прогнозы.')
+
+      const result: AudienceAnalysis = await response.json()
+      setAnalysis(result)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : 'Ошибка анализа аудитории.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  async function predictClient() {
+    if (!client || clientPredicting) return
+
+    const id = client.clientId
+    setClientPredicting(true)
+    setClientPredictionError('')
+
+    try {
+      const response = await fetch(`/api/clients/${encodeURIComponent(id)}/predict`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      })
+      if (!response.ok) throw new Error('Не удалось рассчитать прогноз клиента.')
+
+      const result: ClientPrediction = await response.json()
+      setClientPrediction(result)
+    } catch (error) {
+      setClientPredictionError(error instanceof Error ? error.message : 'Ошибка расчёта прогноза.')
+    } finally {
+      setClientPredicting(false)
+    }
+  }
+
+  // Если прогноз уже рассчитан для аудитории, показываем его в карточке клиента.
+  const fromAudience = client && analysis?.predictions.find(
+    (prediction) => prediction.clientId === client.clientId && prediction.probability !== null,
+  )
+  const shownPrediction = client && clientPrediction?.clientId === client.clientId
+    ? clientPrediction
+    : fromAudience
+
+  const segmentName: Record<'HIGH' | 'MEDIUM' | 'LOW', string> = {
+    HIGH: 'Высокий',
+    MEDIUM: 'Средний',
+    LOW: 'Низкий',
+  }
+
+  // После расчёта показываем наиболее высокие прогнозы первыми.
+  const displayedMembers: (AudienceMember | AudiencePrediction)[] = analysis
+    ? [...analysis.predictions].sort((a, b) => (b.probability ?? -1) - (a.probability ?? -1))
+    : members
 
   return (
       <main className="workspace">
@@ -242,6 +343,8 @@ function App() {
                     setClientId(event.target.value)
                     setClient(null)
                     setError('')
+                    setClientPrediction(null)
+                    setClientPredictionError('')
                   }}
               />
 
@@ -408,30 +511,42 @@ function App() {
               <aside>
                 <section className="panel prediction-panel">
                   <span className="eyebrow">Оценка покупки</span>
-                  <h2>Прогноз модели</h2>
+                  <h2>Прогноз покупки (MOCK)</h2>
 
-                  <div className="prediction-placeholder">
-                    <span className="prediction-number">—</span>
-                    <span>Прогноз не рассчитан</span>
+                  <div className="prediction-placeholder" aria-live="polite">
+                    <span className="prediction-number">
+                      {shownPrediction?.probability != null
+                        ? percent(shownPrediction.probability)
+                        : '—'}
+                    </span>
+                    <span>
+                      {shownPrediction?.probability != null
+                        ? `Сегмент: ${segmentName[shownPrediction.segment as 'HIGH' | 'MEDIUM' | 'LOW']}`
+                        : 'Прогноз не рассчитан'}
+                    </span>
                   </div>
 
                   <p className="prediction-description">
-                    После расчёта здесь появятся вероятность покупки
-                    и период прогноза.
+                    Тестовая вероятность покупки онкополиса. Пока используется MOCK,
+                    не настоящая ML-модель; число не является рекомендацией отправить пуш.
                   </p>
 
                   <button
-                      className="full-width"
-                      type="button"
-                      disabled
-                      aria-describedby="model-status"
+                    className="full-width"
+                    type="button"
+                    onClick={() => void predictClient()}
+                    disabled={clientPredicting}
+                    aria-describedby="model-status"
                   >
-                    Рассчитать прогноз
+                    {clientPredicting ? 'Рассчитываем…' : shownPrediction ? 'Пересчитать прогноз' : 'Рассчитать прогноз'}
                   </button>
 
                   <p className="hint" id="model-status">
-                    Расчёт пока недоступен
+                    {shownPrediction ? 'Демонстрационный расчёт (MOCK)' : 'Пока прогноз не рассчитан'}
                   </p>
+                  {clientPredictionError && (
+                    <p className="error" role="alert">{clientPredictionError}</p>
+                  )}
                 </section>
               </aside>
             </div>
@@ -466,6 +581,8 @@ function App() {
                       setCsvFile(event.target.files?.[0] ?? null)
                       setAudience(null)
                       setMembers([])
+                      setAnalysis(null)
+                      setAnalysisError('')
                       setAudienceError('')
                     }}
                   />
@@ -511,13 +628,58 @@ function App() {
                   <section className="panel" aria-labelledby="members-title">
                     <div className="section-heading">
                       <h2 id="members-title">Клиенты аудитории</h2>
-                      <button type="button" disabled title="ML-модель пока не подключена">
-                        Рассчитать прогноз для аудитории
+                      <button
+                        type="button"
+                        onClick={() => void analyzeAudience()}
+                        disabled={analyzing || audience.foundCount === 0}
+                      >
+                        {analyzing ? 'Рассчитываем…' : 'Рассчитать прогноз для аудитории'}
                       </button>
                     </div>
                     <p className="card-caption">
-                      Массовый расчёт станет доступен после подключения ML-модели.
+                      Временный MOCK: прогнозы фиктивные, не основаны на ML-модели.
                     </p>
+                    {analysisError && <p className="error" role="alert">{analysisError}</p>}
+                    {analysis && (
+                      <div className="analysis-results" aria-label="Результаты тестового анализа">
+                        <div className="analysis-metrics">
+                          <div className="client-metric">
+                            <span className="client-metric-value">{analysis.summary.analyzedClients}</span>
+                            <span>Клиентов с прогнозом</span>
+                          </div>
+                          <div className="client-metric">
+                            <span className="client-metric-value">{percent(analysis.summary.averageProbability)}</span>
+                            <span>Средний прогноз покупки</span>
+                          </div>
+                          <div className="client-metric">
+                            <span className="client-metric-value">{analysis.summary.highCount}</span>
+                            <span>С высоким прогнозом</span>
+                          </div>
+                        </div>
+                        <h3>Распределение по сегментам</h3>
+                        <div className="segment-chart">
+                          {([
+                            { name: 'Высокий', count: analysis.summary.highCount, kind: 'high' },
+                            { name: 'Средний', count: analysis.summary.mediumCount, kind: 'medium' },
+                            { name: 'Низкий', count: analysis.summary.lowCount, kind: 'low' },
+                          ]).map((segment) => (
+                            <div className="segment-row" key={segment.kind}>
+                              <span className="segment-label">{segment.name}</span>
+                              <div className="segment-track">
+                                <div
+                                  className={`segment-bar segment-${segment.kind}`}
+                                  style={{ width: `${analysis.summary.analyzedClients
+                                    ? (segment.count / analysis.summary.analyzedClients) * 100 : 0}%` }}
+                                />
+                              </div>
+                              <span className="segment-count">{segment.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="hint">Распределение среди клиентов с прогнозом. Все значения демонстрационные.</p>
+                      </div>
+                    )}
+                    {analysis && <p className="hint">Клиенты отсортированы по убыванию прогноза покупки.</p>}
                     <div className="audience-table-wrapper">
                       <table className="audience-table">
                         <thead>
@@ -530,7 +692,7 @@ function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {members.map((member) => (
+                          {displayedMembers.map((member) => (
                             <tr key={member.clientId}>
                               <td>{member.clientId}</td>
                               <td>
@@ -540,7 +702,14 @@ function App() {
                               </td>
                               <td className="snapshot-cell">{member.snapshotId ?? '—'}</td>
                               <td className="prediction-cell">
-                                {member.status === 'FOUND' ? 'Не рассчитан' : '—'}
+                                {'probability' in member && member.probability != null ? (
+                                  <span>
+                                    <strong>{percent(member.probability)}</strong>
+                                    <span className="prediction-segment">
+                                      {member.segment === 'HIGH' ? 'Высокий' : member.segment === 'MEDIUM' ? 'Средний' : 'Низкий'}
+                                    </span>
+                                  </span>
+                                ) : member.status === 'FOUND' ? 'Не рассчитан' : '—'}
                               </td>
                               <td>
                                 {member.status === 'FOUND' ? (
