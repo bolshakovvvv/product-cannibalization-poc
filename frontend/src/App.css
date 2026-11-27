@@ -552,6 +552,8 @@ body {
 .segment-high { background: #16a34a; }
 .segment-medium { background: #e8a435; }
 .segment-low { background: #8695b0; }
+.segment-top { background: #16a34a; }
+.segment-rest { background: #8695b0; }
 
 .segment-count {
   font-weight: 700;

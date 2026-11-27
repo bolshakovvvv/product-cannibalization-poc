@@ -48,8 +48,6 @@ public class ClientSnapshotEntity {
     @Column(name = "has_family_or_children")
     private Boolean familyOrChildren;
 
-    // Страховые продукты
-
     @Column(name = "has_active_dms")
     private Boolean activeDms;
 

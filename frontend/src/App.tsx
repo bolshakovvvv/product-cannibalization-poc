@@ -57,14 +57,16 @@ type AudienceMember = {
 
 type AudiencePrediction = AudienceMember & {
   probability: number | null
-  segment: 'HIGH' | 'MEDIUM' | 'LOW' | 'NO_DATA'
+  rank: number | null
+  isTop10: boolean
+  segment: 'TOP_10' | 'OTHER' | 'HIGH' | 'MEDIUM' | 'LOW' | 'NO_DATA'
 }
 
 type ClientPrediction = {
   clientId: string
-  mode: 'MOCK'
+  mode: 'MOCK' | 'ML'
   probability: number
-  segment: 'HIGH' | 'MEDIUM' | 'LOW'
+  segment: 'UNRANKED' | 'HIGH' | 'MEDIUM' | 'LOW'
 }
 
 type AudienceAnalysis = {
@@ -77,6 +79,9 @@ type AudienceAnalysis = {
     highCount: number
     mediumCount: number
     lowCount: number
+    top10Count: number
+    otherCount: number
+    top10AverageProbability: number | null
   }
   predictions: AudiencePrediction[]
 }
@@ -278,15 +283,19 @@ function App() {
     ? clientPrediction
     : fromAudience
 
-  const segmentName: Record<'HIGH' | 'MEDIUM' | 'LOW', string> = {
-    HIGH: 'Высокий',
-    MEDIUM: 'Средний',
-    LOW: 'Низкий',
+  const segmentName: Record<AudiencePrediction['segment'] | ClientPrediction['segment'], string> = {
+    TOP_10: 'Топ-10% аудитории',
+    OTHER: 'Вне топ-10%',
+    UNRANKED: 'Без ранга (один клиент)',
+    HIGH: 'Высокий (MOCK)',
+    MEDIUM: 'Средний (MOCK)',
+    LOW: 'Низкий (MOCK)',
+    NO_DATA: 'Нет данных',
   }
 
-  // После расчёта показываем наиболее высокие прогнозы первыми.
+  // Java already returns scored clients ranked; unknown IDs are at the bottom.
   const displayedMembers: (AudienceMember | AudiencePrediction)[] = analysis
-    ? [...analysis.predictions].sort((a, b) => (b.probability ?? -1) - (a.probability ?? -1))
+    ? analysis.predictions
     : members
 
   return (
@@ -511,7 +520,7 @@ function App() {
               <aside>
                 <section className="panel prediction-panel">
                   <span className="eyebrow">Оценка покупки</span>
-                  <h2>Прогноз покупки (MOCK)</h2>
+                  <h2>Прогноз покупки</h2>
 
                   <div className="prediction-placeholder" aria-live="polite">
                     <span className="prediction-number">
@@ -521,14 +530,17 @@ function App() {
                     </span>
                     <span>
                       {shownPrediction?.probability != null
-                        ? `Сегмент: ${segmentName[shownPrediction.segment as 'HIGH' | 'MEDIUM' | 'LOW']}`
+                        ? segmentName[shownPrediction.segment]
                         : 'Прогноз не рассчитан'}
                     </span>
                   </div>
 
                   <p className="prediction-description">
-                    Тестовая вероятность покупки онкополиса. Пока используется MOCK,
-                    не настоящая ML-модель; число не является рекомендацией отправить пуш.
+                    {shownPrediction
+                      ? (('mode' in shownPrediction ? shownPrediction.mode : analysis?.mode) === 'ML'
+                        ? 'Оценка модели на синтетических данных. Место в топ-10% определяется только среди клиентов конкретной аудитории.'
+                        : 'Демонстрационная оценка MOCK; это не прогноз обученной модели.')
+                      : 'Оценка вероятности покупки онкополиса в течение 30 дней. Для приоритизации нужен анализ аудитории.'}
                   </p>
 
                   <button
@@ -542,7 +554,11 @@ function App() {
                   </button>
 
                   <p className="hint" id="model-status">
-                    {shownPrediction ? 'Демонстрационный расчёт (MOCK)' : 'Пока прогноз не рассчитан'}
+                    {shownPrediction
+                      ? (('mode' in shownPrediction ? shownPrediction.mode : analysis?.mode) === 'ML'
+                        ? 'Прогноз реальной ML-модели, обученной на синтетике'
+                        : 'Демонстрационный расчёт (MOCK)')
+                      : 'Пока прогноз не рассчитан'}
                   </p>
                   {clientPredictionError && (
                     <p className="error" role="alert">{clientPredictionError}</p>
@@ -637,11 +653,13 @@ function App() {
                       </button>
                     </div>
                     <p className="card-caption">
-                      Временный MOCK: прогнозы фиктивные, не основаны на ML-модели.
+                      {analysis?.mode === 'ML'
+                        ? 'Приоритет определяется по относительному рейтингу прогнозов внутри загруженной аудитории, а не по фиксированному порогу.'
+                        : 'В режиме MOCK вероятности демонстрационные. В ML-режиме используются прогнозы обученной модели.'}
                     </p>
                     {analysisError && <p className="error" role="alert">{analysisError}</p>}
                     {analysis && (
-                      <div className="analysis-results" aria-label="Результаты тестового анализа">
+                      <div className="analysis-results" aria-label="Результаты анализа аудитории">
                         <div className="analysis-metrics">
                           <div className="client-metric">
                             <span className="client-metric-value">{analysis.summary.analyzedClients}</span>
@@ -652,17 +670,25 @@ function App() {
                             <span>Средний прогноз покупки</span>
                           </div>
                           <div className="client-metric">
-                            <span className="client-metric-value">{analysis.summary.highCount}</span>
-                            <span>С высоким прогнозом</span>
+                            <span className="client-metric-value">
+                              {analysis.mode === 'ML' ? analysis.summary.top10Count : analysis.summary.highCount}
+                            </span>
+                            <span>{analysis.mode === 'ML' ? 'Отобрано в топ-10%' : 'Высокий MOCK-сегмент'}</span>
                           </div>
                         </div>
-                        <h3>Распределение по сегментам</h3>
+                        <h3>{analysis.mode === 'ML' ? 'Приоритет по рейтингу' : 'Демонстрационные сегменты'}</h3>
                         <div className="segment-chart">
-                          {([
-                            { name: 'Высокий', count: analysis.summary.highCount, kind: 'high' },
-                            { name: 'Средний', count: analysis.summary.mediumCount, kind: 'medium' },
-                            { name: 'Низкий', count: analysis.summary.lowCount, kind: 'low' },
-                          ]).map((segment) => (
+                          {(analysis.mode === 'ML'
+                            ? [
+                                { name: 'Топ-10%', count: analysis.summary.top10Count, kind: 'top' },
+                                { name: 'Остальные', count: analysis.summary.otherCount, kind: 'rest' },
+                              ]
+                            : [
+                                { name: 'Высокий', count: analysis.summary.highCount, kind: 'high' },
+                                { name: 'Средний', count: analysis.summary.mediumCount, kind: 'medium' },
+                                { name: 'Низкий', count: analysis.summary.lowCount, kind: 'low' },
+                              ]
+                          ).map((segment) => (
                             <div className="segment-row" key={segment.kind}>
                               <span className="segment-label">{segment.name}</span>
                               <div className="segment-track">
@@ -676,7 +702,11 @@ function App() {
                             </div>
                           ))}
                         </div>
-                        <p className="hint">Распределение среди клиентов с прогнозом. Все значения демонстрационные.</p>
+                        <p className="hint">
+                          {analysis.mode === 'ML'
+                            ? 'Топ-10% вычислен среди клиентов с прогнозом. При малом числе клиентов доля округляется вверх. Модель оценивает покупку, а не причинную каннибализацию.'
+                            : 'Демонстрационные значения не основаны на обученной модели.'}
+                        </p>
                       </div>
                     )}
                     {analysis && <p className="hint">Клиенты отсортированы по убыванию прогноза покупки.</p>}
@@ -684,6 +714,7 @@ function App() {
                       <table className="audience-table">
                         <thead>
                           <tr>
+                            <th scope="col">Место</th>
                             <th scope="col">ID клиента</th>
                             <th scope="col">Статус</th>
                             <th scope="col">ID снимка</th>
@@ -694,6 +725,7 @@ function App() {
                         <tbody>
                           {displayedMembers.map((member) => (
                             <tr key={member.clientId}>
+                              <td>{'rank' in member ? member.rank ?? '—' : '—'}</td>
                               <td>{member.clientId}</td>
                               <td>
                                 <span className={`member-status ${member.status === 'FOUND' ? 'member-found' : 'member-missing'}`}>
@@ -706,7 +738,7 @@ function App() {
                                   <span>
                                     <strong>{percent(member.probability)}</strong>
                                     <span className="prediction-segment">
-                                      {member.segment === 'HIGH' ? 'Высокий' : member.segment === 'MEDIUM' ? 'Средний' : 'Низкий'}
+                                      {segmentName[member.segment]}
                                     </span>
                                   </span>
                                 ) : member.status === 'FOUND' ? 'Не рассчитан' : '—'}
