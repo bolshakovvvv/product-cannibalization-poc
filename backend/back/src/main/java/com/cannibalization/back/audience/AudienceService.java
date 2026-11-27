@@ -3,6 +3,7 @@ package com.cannibalization.back.audience;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import com.cannibalization.back.ml.MlPredictionService;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
@@ -20,9 +21,11 @@ import java.util.*;
 public class AudienceService {
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final MlPredictionService ml;
 
-    public AudienceService(DataSource dataSource) {
+    public AudienceService(DataSource dataSource, MlPredictionService ml) {
         this.jdbc = new NamedParameterJdbcTemplate(dataSource);
+        this.ml = ml;
     }
 
     @Transactional
@@ -144,62 +147,83 @@ public class AudienceService {
 
     public Map<String, Object> analyze(UUID audienceId) {
         var members = getMembers(audienceId);
+        var probabilities = ml.predictAudience(audienceId);
+        var ranking = AudienceRanking.rank(probabilities);
         var predictions = new ArrayList<Map<String, Object>>();
 
-        int high = 0;
-        int medium = 0;
-        int low = 0;
+        boolean realMl = ml.mode().equals("ML");
+        int high = 0, medium = 0, low = 0;
         double sum = 0;
+        double selectedSum = 0;
+        int analyzed = 0;
+        int top10Count = 0;
 
         for (var member : members) {
             var result = new LinkedHashMap<>(member);
+            String clientId = (String) member.get("clientId");
+            Double probability = probabilities.get(clientId);
 
-            if ("FOUND".equals(member.get("status"))) {
-                String clientId = (String) member.get("clientId");
-
-                double probability =
-                        (10 + Math.floorMod(clientId.hashCode(), 81)) / 100.0;
-
-                String segment = probability >= 0.7 ? "HIGH"
-                        : probability >= 0.4 ? "MEDIUM" : "LOW";
-
-                result.put("probability", probability);
-                result.put("segment", segment);
-
+            if (probability != null) {
+                var place = ranking.get(clientId);
+                analyzed++;
                 sum += probability;
+                result.put("probability", probability);
+                result.put("rank", place.rank());
+                result.put("isTop10", place.top10());
+                if (place.top10()) {
+                    top10Count++;
+                    selectedSum += probability;
+                }
 
-                switch (segment) {
-                    case "HIGH" -> high++;
-                    case "MEDIUM" -> medium++;
-                    case "LOW" -> low++;
+                if (realMl) {
+                    // Relative priority is based on ranking, not fixed score bands.
+                    result.put("segment", place.top10() ? "TOP_10" : "OTHER");
+                } else {
+                    // Preserve the earlier MOCK demonstration for backward compatibility.
+                    String segment = probability >= 0.7 ? "HIGH"
+                            : probability >= 0.4 ? "MEDIUM" : "LOW";
+                    switch (segment) {
+                        case "HIGH" -> high++;
+                        case "MEDIUM" -> medium++;
+                        case "LOW" -> low++;
+                    }
+                    result.put("segment", segment);
                 }
             } else {
                 result.put("probability", null);
+                result.put("rank", null);
+                result.put("isTop10", false);
                 result.put("segment", "NO_DATA");
             }
-
             predictions.add(result);
         }
 
-        int analyzed = high + medium + low;
+        // Ranked clients first, missing clients last. Alphabetical tie-break for missing IDs.
+        predictions.sort(Comparator
+                .comparingInt((Map<String, Object> item) ->
+                        item.get("rank") == null ? Integer.MAX_VALUE : ((Number) item.get("rank")).intValue())
+                .thenComparing(item -> (String) item.get("clientId")));
 
         var summary = new LinkedHashMap<String, Object>();
-
         summary.put("totalClients", members.size());
         summary.put("analyzedClients", analyzed);
         summary.put("averageProbability",
-                analyzed == 0 ? null
-                        : Math.round(sum / analyzed * 100.0) / 100.0);
+                analyzed == 0 ? null : Math.round(sum / analyzed * 10000.0) / 10000.0);
+        // Counts refer ONLY to members with a calculated prediction.
+        summary.put("top10Count", top10Count);
+        summary.put("otherCount", analyzed - top10Count);
+        summary.put("top10AverageProbability",
+                top10Count == 0 ? null : Math.round(selectedSum / top10Count * 10000.0) / 10000.0);
+        // Old counters are for MOCK, not probability bands in real ML.
         summary.put("highCount", high);
         summary.put("mediumCount", medium);
         summary.put("lowCount", low);
 
         return Map.of(
                 "audienceId", audienceId,
-                "mode", "MOCK",
+                "mode", ml.mode(),
                 "summary", summary,
                 "predictions", predictions
         );
     }
-
 }
